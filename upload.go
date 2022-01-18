@@ -23,7 +23,7 @@ Options:
 }
 
 func init() {
-	cmdDownload.Flags.StringVar(&proxy, "proxy", "", "proxy to upload modules to")
+	cmdUpload.Flags.StringVar(&proxy, "proxy", "", "proxy to upload modules to")
 }
 
 func upload(self *Command) error {

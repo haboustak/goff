@@ -7,6 +7,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/mod/module"
 )
 
 var (
@@ -69,7 +71,15 @@ func router(writer http.ResponseWriter, request *http.Request) {
 func list(writer http.ResponseWriter, request *http.Request) {
 	println(request.URL.Path)
 
-	modPath := strings.TrimSuffix(request.URL.Path, "/@v/list")[1:]
+	escapedModPath := strings.TrimSuffix(request.URL.Path, "/@v/list")[1:]
+	modPath, err := parseModPath(escapedModPath)
+	if err != nil {
+		http.Error(
+			writer,
+			fmt.Sprintf("Unable to list module: %v", err),
+			http.StatusNotFound)
+		return
+	}
 	versionGlob := path.Join(rootDir, modPath, "*.info")
 	fmt.Printf("Searching %v\n", versionGlob)
 
@@ -79,6 +89,7 @@ func list(writer http.ResponseWriter, request *http.Request) {
 			writer,
 			fmt.Sprintf("Search failed %v: %v", versionGlob, err),
 			http.StatusNotFound)
+		return
 	}
 
 	for _, versionFile := range versionFiles {
@@ -94,8 +105,28 @@ func redirect(writer http.ResponseWriter, request *http.Request) {
 		http.NotFound(writer, request)
 		return
 	}
+	modPath, err := parseModPath(modValues[0][1:])
+	if err != nil {
+		http.Error(
+			writer,
+			fmt.Sprintf("Unable to access module: %v", err),
+			http.StatusNotFound)
+		return
+	}
+	version := modValues[1]
+	if modPath != modValues[0] {
+		// If the mod path was unescaped we may need to unescape the version
+		version, err = module.UnescapeVersion(version)
+		if err != nil {
+			http.Error(
+				writer,
+				fmt.Sprintf("Invalid version: %v", err),
+				http.StatusNotFound)
+			return
+		}
+	}
 
-	resourcePath := path.Join("/modules", modValues[0], modValues[1])
+	resourcePath := path.Join("/modules", modPath, version)
 	println(fmt.Sprintf("Redirecting to %v", resourcePath))
 	writer.Header().Set("X-Accel-Redirect", resourcePath)
 	fmt.Fprintf(writer, "")
@@ -103,4 +134,30 @@ func redirect(writer http.ResponseWriter, request *http.Request) {
 
 func home(writer http.ResponseWriter, request *http.Request) {
 	fmt.Fprintf(writer, "home home home")
+}
+
+// parseModPath will first unescape the module and check if it exists. If it
+// exists it will return the unescaped module. If it does not exist it will
+// then check to see if the escaped module exists (in the case we are running
+// on a case insensitive filesystem). If the escaped path exists it will return
+// the escaped path. If that is not the case, or the module path is invalid,
+// then an error will be returned.
+func parseModPath(modPath string) (string, error) {
+	fmt.Printf("Parse %s\n", modPath)
+	unescaped, err := module.UnescapePath(modPath)
+	if err != nil {
+		return "", err
+	}
+	if isDir(path.Join(rootDir, unescaped)) {
+		return unescaped, nil
+	}
+	if modPath != unescaped && isDir(path.Join(rootDir, modPath)) {
+		return modPath, nil
+	}
+	return "", fmt.Errorf("module %s does not exist", unescaped)
+}
+
+func isDir(path string) bool {
+	stat, err := os.Stat(path)
+	return err == nil && stat.IsDir()
 }

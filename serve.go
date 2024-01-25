@@ -87,6 +87,25 @@ func list(writer http.ResponseWriter, request *http.Request) {
 	}
 }
 
+// fixupProxyPath converts a goproxy-protocol compliant package path that contains '!' characters to indicate a capital letter follows to a
+// path that does not contain '!' characters and matches the files on-disk in a case-sensitive filesystem
+func fixupProxyPath(goProxyPath string) string {
+	idx := 0
+	outstr := ""
+	for idx < len(goProxyPath) {
+		if goProxyPath[idx] == '!' {
+			// The following letter should be upper-cased
+			outstr += strings.ToUpper(string(goProxyPath[idx+1]))
+			idx += 1
+		} else {
+			outstr += string(goProxyPath[idx])
+		}
+
+		idx += 1
+	}
+	return outstr
+}
+
 func redirect(writer http.ResponseWriter, request *http.Request) {
 	println(request.URL.Path)
 	modValues := strings.Split(request.URL.Path, "/@v/")
@@ -96,6 +115,9 @@ func redirect(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	resourcePath := path.Join("/modules", modValues[0], modValues[1])
+	// Fix up the goproxy-path to match the filesystem so nginx can serve the correct file
+	resourcePath = fixupProxyPath(resourcePath)
+
 	println(fmt.Sprintf("Redirecting to %v", resourcePath))
 	writer.Header().Set("X-Accel-Redirect", resourcePath)
 	fmt.Fprintf(writer, "")

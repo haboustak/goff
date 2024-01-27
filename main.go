@@ -63,7 +63,8 @@ func main() {
 		cmd.Flags.Parse(args)
 		err := cmd.Run(cmd)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
 		}
 		cmdFound = true
 		break

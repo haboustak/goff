@@ -7,7 +7,7 @@ import (
 )
 
 var BasePath string
-var Version = "0.9.0-dev"
+var Version = "v0.9.1"
 
 type Command struct {
 	Name  string
@@ -101,6 +101,6 @@ func printUsage(usage string) {
 }
 
 func printVersion() {
-	fmt.Fprintf(os.Stdout, "linkctl %s\n", Version)
+	fmt.Fprintf(os.Stdout, "goff %s\n", Version)
 	os.Exit(0)
 }

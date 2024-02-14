@@ -1,0 +1,53 @@
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags: [ '*' ]
+
+name: Publish goff
+
+jobs:
+  build:
+    name: Create release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+
+      - name: Check out
+        uses: actions/checkout@v2
+
+      - name: Set version
+        id: version
+        run: echo "::set-output name=tag::$(git describe --tag)"
+
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
+      - name: Build
+        run: |
+            go build -v -ldflags="-X 'main.Version=${{ steps.version.outputs.tag }}'" .
+            tar zcvf "goff-${{ steps.version.outputs.tag }}.tar.gz" goff
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload goff
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: "./goff-${{ steps.version.outputs.tag }}.tar.gz"
+          asset_name: "goff-${{ steps.version.outputs.tag }}.tar.gz"
+          asset_content_type: application/octet-stream
